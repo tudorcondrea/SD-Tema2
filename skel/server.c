@@ -11,7 +11,7 @@ server_memory* init_server_memory() {
 }
 
 void server_store(server_memory* server, char* key, char* value) {
-	ht_put(server->ht, key, strlen(key), value, strlen(value));
+	ht_put(server->ht, key, strlen(key) + 1, value, strlen(value) + 1);
 }
 
 void server_remove(server_memory* server, char* key) {

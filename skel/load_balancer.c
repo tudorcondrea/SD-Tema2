@@ -1,6 +1,7 @@
 /* Copyright 2021 <> */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "load_balancer.h"
 
@@ -66,14 +67,16 @@ int bin_search(struct server_info *vect, int n, unsigned int x)
 
 void loader_store(load_balancer* main, char* key, char* value, int* server_id) {
     unsigned int key_hashed = hash_function_key(key);
-	*server_id = bin_search(main->ids, main->num_labels, key_hashed) & main->num_labels;
+    int pos = bin_search(main->ids, main->num_labels, key_hashed) % main->num_labels;
+	*server_id = main->ids[pos].id % 100000;
     server_store(main->servers[*server_id], key, value);
 }
 
 
 char* loader_retrieve(load_balancer* main, char* key, int* server_id) {
 	unsigned int key_hashed = hash_function_key(key);
-	*server_id = bin_search(main->ids, main->num_labels, key_hashed) & main->num_labels;
+	int pos = bin_search(main->ids, main->num_labels, key_hashed) % main->num_labels;
+	*server_id = main->ids[pos].id % 100000;
 	return server_retrieve(main->servers[*server_id], key);
 }
 
@@ -88,6 +91,13 @@ int insert_sorted(struct server_info *v, int n, unsigned int x)
     v[i].id = x;
     v[i].hashed_id = hashed_id;
     return i;
+}
+
+int remove_nth(struct server_info *v, int n, int x)
+{
+    for (int i = x; i < n - 1; i++)
+        v[i] = v[i + 1];
+    return v[x % (n - 1)].id;
 }
 
 void loader_add_server(load_balancer* main, int server_id) {
@@ -110,7 +120,7 @@ void loader_add_server(load_balancer* main, int server_id) {
                 char *value = (char*)((struct info*)q->data)->value;
                 if (hash_function_key(key) < hashed_id)
                 {
-                    ht_put(ht_new, key, strlen(key), value, strlen(value));
+                    ht_put(ht_new, key, strlen(key) + 1, value, strlen(value) + 1);
                     ht_remove_entry(ht_to_check, key);
                 }
                 q = q->next;
@@ -128,21 +138,23 @@ void loader_remove_server(load_balancer* main, int server_id) {
         temp_id = k*100000 + server_id;
         hashed_id = hash_function_servers(&temp_id);
         pos = bin_search(main->ids, main->num_labels, hashed_id);
-        hashtable_t *ht_to_check = main->servers[main->ids[pos].id % 100000]->ht;
-        hashtable_t *ht_new = main->servers[main->ids[(pos + 1) % main->num_labels].id % 100000]->ht;
-        for (unsigned int i = 0; i < ht_to_check->hmax; i++)
-        {
-            ll_node_t *q = ht_to_check->buckets[i]->head;
-            while (q)
-            {
-                char *key = (char*)((struct info*)q->data)->key;
-                char *value = (char*)((struct info*)q->data)->value;
-                ht_put(ht_new, key, strlen(key), value, strlen(value));
-                ht_remove_entry(ht_to_check, key);
-                q = q->next;
-            }
-        }
+        pos = remove_nth(main->ids, main->num_labels, pos) % 100000;
         main->num_labels -= 1;
+        hashtable_t *ht_to_check = main->servers[server_id % 100000]->ht;
+        hashtable_t *ht_new = main->servers[pos]->ht;
+        if (pos != server_id)
+            for (unsigned int i = 0; i < ht_to_check->hmax; i++)
+            {
+                ll_node_t *q = ht_to_check->buckets[i]->head;
+                while (q)
+                {
+                    char *key = (char*)((struct info*)q->data)->key;
+                    char *value = (char*)((struct info*)q->data)->value;
+                    ht_put(ht_new, key, strlen(key) + 1, value, strlen(value) + 1);
+                    ht_remove_entry(ht_to_check, key);
+                    q = q->next;
+                }
+            }
     }
 }
 
