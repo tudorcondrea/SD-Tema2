@@ -38,9 +38,7 @@ unsigned int hash_function_key(void *a) {
 
 load_balancer* init_load_balancer() {
 	load_balancer *bal = malloc(sizeof(*bal));
-    bal->servers = malloc(100000 * sizeof(server_memory*));
-    for (int i = 0; i < 100000; i++)
-        bal->servers[i] = init_server_memory();
+    bal->servers = calloc(100000, sizeof(server_memory*));
     bal->num_labels = 0;
     return bal;
 }
@@ -132,6 +130,7 @@ void loader_add_server(load_balancer* main, int server_id) {
     int pos;
     unsigned int hashed_id, temp_id;
     //printf("\n");
+    main->servers[server_id] = init_server_memory();
     for (unsigned int k = 0; k < 3; k++)
     {
         temp_id = k*100000 + server_id;
@@ -154,7 +153,17 @@ void loader_add_server(load_balancer* main, int server_id) {
             for (int i = 0; i < key_count; i++)
             {
                 unsigned int hashed_key = hash_function_key(keys[i]);
-                if (hashed_key < hashed_id && main->ids[(pos - 1) % main->num_labels].hashed_id < hashed_key || (pos == 0 && hashed_key > main->ids[main->num_labels - 1].hashed_id))
+                if (pos == 0)
+                {
+                    if (hashed_key > main->ids[main->num_labels - 1].hashed_id || hashed_key < hashed_id)
+                    {
+                        void *value = ht_get(ht_to_check, keys[i]);
+                        //printf("%d(%010u) -> %d(%010u): %010u %s\n", main->ids[(pos + 1) % main->num_labels].id, main->ids[(pos + 1) % main->num_labels].hashed_id, main->ids[pos].id, main->ids[pos].hashed_id, hashed_key, (char*)value);
+                        ht_put(ht_new, keys[i], strlen(keys[i]) + 1, value, strlen((char*)value) + 1);
+                        ht_remove_entry(ht_to_check, keys[i]);
+                    }
+                }
+                else if (hashed_key < hashed_id && main->ids[(pos - 1) % main->num_labels].hashed_id < hashed_key)
                 {
                     void *value = ht_get(ht_to_check, keys[i]);
                     //printf("%d(%010u) -> %d(%010u): %010u %s\n", main->ids[(pos + 1) % main->num_labels].id, main->ids[(pos + 1) % main->num_labels].hashed_id, main->ids[pos].id, main->ids[pos].hashed_id, hashed_key, (char*)value);
@@ -190,7 +199,7 @@ void loader_remove_server(load_balancer* main, int server_id) {
             for (int i = 0; i < key_count; i++)
             {
                 hashed_key = hash_function_key(keys[i]);
-                if (hashed_key < hashed_id && hashed_key > main->ids[(pos - 1) % main->num_labels].hashed_id || pos == main->num_labels)
+                if ((hashed_key < hashed_id && hashed_key > main->ids[(pos - 1) % main->num_labels].hashed_id) || pos == main->num_labels)
                 {
                     void *value = ht_get(ht_to_check, keys[i]);
                     ht_put(ht_new, keys[i], strlen(keys[i]) + 1, value, strlen((char*)value) + 1);
@@ -202,11 +211,14 @@ void loader_remove_server(load_balancer* main, int server_id) {
             free(keys);
         }
     }
+    free_server_memory(main->servers[server_id]);
+    main->servers[server_id] = NULL;
 }
 
 void free_load_balancer(load_balancer* main) {
     for (int i = 0; i < 100000; i++)
-        free_server_memory(main->servers[i]);
+        if (main->servers[i])
+            free_server_memory(main->servers[i]);
     free(main->servers);
     free(main);
 }

@@ -6,7 +6,7 @@
 
 server_memory* init_server_memory() {
 	server_memory *server = malloc(sizeof(*server));
-	server->ht = ht_create(100, hash_function_string, compare_function_strings);
+	server->ht = ht_create(10, hash_function_string, compare_function_strings);
 	return server;
 }
 
