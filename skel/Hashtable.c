@@ -177,12 +177,12 @@ ht_remove_entry(hashtable_t *ht, void *key)
 			ll_node_t *p = ll_remove_nth_node(ht->buckets[bucketIndex], count);
 			free(p->data);
 			free(p);
+			ht->size--;
 			return;
 		}
 		q = q->next;
 		count++;
 	}
-	ht->size--;
 }
 
 /*
