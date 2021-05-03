@@ -68,4 +68,7 @@ hash_function_int(void *a);
 unsigned int
 hash_function_string(void *a);
 
+char **
+ht_get_keys(hashtable_t *ht, int *n);
+
 #endif

@@ -115,8 +115,7 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 	{
 		if (ht->compare_function(((struct info*)q->data)->key, key) == 0)
 		{
-			free(((struct info*)q->data)->value);
-			((struct info*)q->data)->value = malloc(value_size);
+			((struct info*)q->data)->value = realloc(((struct info*)q->data)->value, value_size);
 			memcpy(((struct info*)q->data)->value, value, value_size);
 			return;
 		}
@@ -127,7 +126,7 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 	adr.value = malloc(value_size);
 	memcpy(adr.key, key, key_size);
 	memcpy(adr.value, value, value_size);
-	ll_add_nth_node(ht->buckets[bucketIndex], 0, &adr);
+	ll_add_nth_node(ht->buckets[bucketIndex], ht->buckets[bucketIndex]->size, &adr);
 	ht->size++;
 }
 
@@ -226,4 +225,21 @@ ht_get_hmax(hashtable_t *ht)
 		return 0;
 
 	return ht->hmax;
+}
+
+char **
+ht_get_keys(hashtable_t *ht, int *n)
+{
+	*n = 0;
+	char **keys = malloc(sizeof(char*));
+	for (unsigned int i = 0; i < ht->hmax; i++)
+		for (ll_node_t *q = ht->buckets[i]->head; q != NULL; q = q->next)
+		{
+			keys = realloc(keys, (*n + 1)*sizeof(char*));
+			keys[*n] = malloc(strlen(((struct info*)q->data)->key) + 1);
+			memcpy(keys[*n], ((struct info*)q->data)->key, strlen(((struct info*)q->data)->key) + 1);
+			*n += 1;
+		}
+	
+	return keys;
 }
