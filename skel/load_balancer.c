@@ -1,4 +1,4 @@
-/* Copyright 2021 <> */
+/* Copyright 2021 <Condrea Tudor Daniel> */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -11,9 +11,9 @@ struct server_info {
 };
 
 struct load_balancer {
-	struct server_info ids[300000]; // retine toate etichetele 
-                                    //ordonate dupa hash
-    server_memory **servers; // array de pointere la servere
+	struct server_info ids[300000];  // retine toate etichetele
+                                     // ordonate dupa hash
+    server_memory **servers;  // array de pointere la servere
     int num_labels;
 };
 
@@ -110,7 +110,7 @@ int remove_nth(struct server_info *v, int n, int x)
 }
 
 void loader_add_server(load_balancer* main, int server_id) {
-    int pos, next_id;
+    int pos, next_id, prev_id;
     unsigned int hashed_id, temp_id;
     main->servers[server_id] = init_server_memory();
     // pentru fiecare server inserat, sunt adaugate 3 etichete
@@ -125,6 +125,7 @@ void loader_add_server(load_balancer* main, int server_id) {
         {
             int key_count;
             char **keys = server_get_keys(main->servers[next_id], &key_count);
+            prev_id = (pos - 1) % main->num_labels;
             for (int i = 0; i < key_count; i++)
             {
                 unsigned int hashed_key = hash_function_key(keys[i]);
@@ -135,16 +136,20 @@ void loader_add_server(load_balancer* main, int server_id) {
                  */
                 if (pos == 0)
                 {
-                    if (hashed_key > main->ids[main->num_labels - 1].hashed_id || hashed_key < hashed_id)
+                    if (hashed_key > main->ids[main->num_labels - 1].hashed_id
+                        || hashed_key < hashed_id)
                     {
-                        void *value = server_retrieve(main->servers[next_id], keys[i]);
+                        void *value = server_retrieve(main->servers[next_id],
+                                                      keys[i]);
                         server_store(main->servers[server_id], keys[i], value);
                         server_remove(main->servers[next_id], keys[i]);
                     }
                 }
-                else if (hashed_key < hashed_id && main->ids[(pos - 1) % main->num_labels].hashed_id < hashed_key)
+                else if (hashed_key < hashed_id &&
+                         main->ids[prev_id].hashed_id < hashed_key)
                 {
-                    void *value = server_retrieve(main->servers[next_id], keys[i]);
+                    void *value = server_retrieve(main->servers[next_id],
+                                                  keys[i]);
                     server_store(main->servers[server_id], keys[i], value);
                     server_remove(main->servers[next_id], keys[i]);
                 }
@@ -158,7 +163,7 @@ void loader_add_server(load_balancer* main, int server_id) {
 
 
 void loader_remove_server(load_balancer* main, int server_id) {
-    int pos, temp_id, rem_id;
+    int pos, temp_id, rem_id, prev_pos;
     unsigned int hashed_id, hashed_key;
     for (unsigned int k = 0; k < 3; k++)
     {
@@ -166,19 +171,23 @@ void loader_remove_server(load_balancer* main, int server_id) {
         hashed_id = hash_function_servers(&temp_id);
         pos = bin_search(main->ids, main->num_labels, hashed_id);
         // rem_id e eticheta de dupa cea scoasa
-        rem_id = remove_nth(main->ids, main->num_labels, pos);
+        rem_id = remove_nth(main->ids, main->num_labels, pos) % 100000;
         main->num_labels -= 1;
-        if (rem_id % 100000 != server_id)
+        if (rem_id != server_id)
         {
             int key_count;
             char **keys = server_get_keys(main->servers[server_id], &key_count);
             for (int i = 0; i < key_count; i++)
             {
                 hashed_key = hash_function_key(keys[i]);
-                if ((hashed_key < hashed_id && hashed_key > main->ids[(pos - 1) % main->num_labels].hashed_id) || pos == main->num_labels)
+                prev_pos = (pos - 1) % main->num_labels;
+                if ((hashed_key < hashed_id &&
+                    hashed_key > main->ids[prev_pos].hashed_id)
+                    || pos == main->num_labels)
                 {
-                    void *value = server_retrieve(main->servers[server_id], keys[i]);
-                    server_store(main->servers[rem_id % 100000], keys[i], value);
+                    void *value = server_retrieve(main->servers[server_id],
+                                                  keys[i]);
+                    server_store(main->servers[rem_id], keys[i], value);
                     server_remove(main->servers[server_id], keys[i]);
                 }
             }

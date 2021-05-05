@@ -1,5 +1,6 @@
-#ifndef __LINKED_LIST_H_
-#define __LINKED_LIST_H_
+// Copyright 2021 Condrea Tudor Daniel
+#ifndef LINKEDLIST_H_
+#define LINKEDLIST_H_
 
 typedef struct ll_node_t ll_node_t;
 struct ll_node_t {
@@ -35,4 +36,4 @@ ll_print_int(linked_list_t* list);
 void
 ll_print_string(linked_list_t* list);
 
-#endif /* __LINKED_LIST_H_ */
+#endif  // LINKEDLIST_H_

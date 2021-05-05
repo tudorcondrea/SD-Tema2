@@ -1,7 +1,4 @@
-/*
- * Hashtable.c
- * Alexandru-Cosmin Mihai
- */
+// Copyright 2021 Condrea Tudor Daniel
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +109,8 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 {
 	unsigned int bucketIndex = ht->hash_function(key);
 	bucketIndex %= ht->hmax;
-	ll_node_t *q = ht->buckets[bucketIndex]->head;
+	linked_list_t *bucket = ht->buckets[bucketIndex];
+	ll_node_t *q = bucket->head;
 	while(q != NULL)
 	{
 		if (ht->compare_function(((struct info*)q->data)->key, key) == 0)
@@ -132,7 +130,7 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 	DIE(!adr.value, "ht value malloc failure");
 	memcpy(adr.key, key, key_size);
 	memcpy(adr.value, value, value_size);
-	ll_add_nth_node(ht->buckets[bucketIndex], ht->buckets[bucketIndex]->size, &adr);
+	ll_add_nth_node(bucket, bucket->size, &adr);
 	ht->size++;
 }
 
@@ -220,7 +218,6 @@ ht_get_size(hashtable_t *ht)
 {
 	if (ht == NULL)
 		return 0;
-
 	return ht->size;
 }
 
@@ -237,19 +234,19 @@ char **
 ht_get_keys(hashtable_t *ht, int *n)
 {
 	*n = 0;
-	char **keys = malloc(sizeof(char*));
-	DIE (!keys, "ht key retrieval malloc failure");
+	char **keys = malloc(sizeof(char*)), *extracted_key;
+	DIE(!keys, "ht key retrieval malloc failure");
 	for (unsigned int i = 0; i < ht->hmax; i++)
 		for (ll_node_t *q = ht->buckets[i]->head; q != NULL; q = q->next)
 		{
 			char **new_ptr = realloc(keys, (*n + 1)*sizeof(char*));
 			DIE(!new_ptr, "ht key retrieval resize realloc failure");
 			keys = new_ptr;
-			keys[*n] = malloc(strlen(((struct info*)q->data)->key) + 1);
+			extracted_key = ((struct info*)q->data)->key;
+			keys[*n] = malloc(strlen(extracted_key) + 1);
 			DIE(!keys[*n], "ht key retrieval new key malloc failure");
-			memcpy(keys[*n], ((struct info*)q->data)->key, strlen(((struct info*)q->data)->key) + 1);
+			memcpy(keys[*n], extracted_key, strlen(extracted_key) + 1);
 			*n += 1;
 		}
-	
 	return keys;
 }

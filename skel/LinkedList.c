@@ -1,3 +1,5 @@
+// Copyright 2021 Condrea Tudor Daniel
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

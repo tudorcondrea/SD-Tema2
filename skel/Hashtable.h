@@ -1,9 +1,6 @@
-/*
- * Hashtable.h
- * Alexandru-Cosmin Mihai
- */
-#ifndef __HASHTABLE_H
-#define __HASHTABLE_H
+// Copyright 2021 Condrea Tudor Daniel
+#ifndef HASHTABLE_H_
+#define HASHTABLE_H_
 
 #include "LinkedList.h"
 
@@ -71,4 +68,4 @@ hash_function_string(void *a);
 char **
 ht_get_keys(hashtable_t *ht, int *n);
 
-#endif
+#endif  // HASHTABLE_H_
