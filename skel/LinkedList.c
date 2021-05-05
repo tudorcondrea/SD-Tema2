@@ -40,8 +40,6 @@ ll_add_nth_node(linked_list_t* list, unsigned int n, const void* new_data)
     /* n >= list->size inseamna adaugarea unui nou nod la finalul listei. */
     if (n > list->size) {
         n = list->size;
-    } else if (n < 0) {
-        return;
     }
 
     curr = list->head;

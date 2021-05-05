@@ -81,12 +81,14 @@ ht_create(unsigned int hmax, unsigned int (*hash_function)(void*),
 		int (*compare_function)(void*, void*))
 {
 	hashtable_t *table = malloc(sizeof(hashtable_t));
+	DIE(!table, "ht malloc failure");
 	table->hmax = hmax;
 	table->size = 0;
 	table->compare_function = compare_function;
 	table->hash_function = hash_function;
 	table->buckets = malloc(hmax * sizeof(linked_list_t*));
-	for (int i = 0; i < hmax; i++)
+	DIE(!table->buckets, "buckets malloc failure");
+	for (unsigned int i = 0; i < hmax; i++)
 		table->buckets[i] = ll_create(sizeof(struct info));
 	return table;
 }
@@ -115,7 +117,9 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 	{
 		if (ht->compare_function(((struct info*)q->data)->key, key) == 0)
 		{
-			((struct info*)q->data)->value = realloc(((struct info*)q->data)->value, value_size);
+			void *new_ptr = realloc(((struct info*)q->data)->value, value_size);
+			DIE(!new_ptr, "ht rewrite realloc failure");
+			((struct info*)q->data)->value = new_ptr;
 			memcpy(((struct info*)q->data)->value, value, value_size);
 			return;
 		}
@@ -123,7 +127,9 @@ ht_put(hashtable_t *ht, void *key, unsigned int key_size,
 	}
 	struct info adr;
 	adr.key = malloc(key_size);
+	DIE(!adr.key, "ht key malloc failure");
 	adr.value = malloc(value_size);
+	DIE(!adr.value, "ht value malloc failure");
 	memcpy(adr.key, key, key_size);
 	memcpy(adr.value, value, value_size);
 	ll_add_nth_node(ht->buckets[bucketIndex], ht->buckets[bucketIndex]->size, &adr);
@@ -191,7 +197,7 @@ ht_remove_entry(hashtable_t *ht, void *key)
 void
 ht_free(hashtable_t *ht)
 {
-	for (int i = 0; i < ht->hmax; i++)
+	for (unsigned int i = 0; i < ht->hmax; i++)
 	{
 		ll_node_t *q = ht->buckets[i]->head;
 		while (q != NULL)
@@ -232,11 +238,15 @@ ht_get_keys(hashtable_t *ht, int *n)
 {
 	*n = 0;
 	char **keys = malloc(sizeof(char*));
+	DIE (!keys, "ht key retrieval malloc failure");
 	for (unsigned int i = 0; i < ht->hmax; i++)
 		for (ll_node_t *q = ht->buckets[i]->head; q != NULL; q = q->next)
 		{
-			keys = realloc(keys, (*n + 1)*sizeof(char*));
+			char **new_ptr = realloc(keys, (*n + 1)*sizeof(char*));
+			DIE(!new_ptr, "ht key retrieval resize realloc failure");
+			keys = new_ptr;
 			keys[*n] = malloc(strlen(((struct info*)q->data)->key) + 1);
+			DIE(!keys[*n], "ht key retrieval new key malloc failure");
 			memcpy(keys[*n], ((struct info*)q->data)->key, strlen(((struct info*)q->data)->key) + 1);
 			*n += 1;
 		}

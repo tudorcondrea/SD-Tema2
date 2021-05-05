@@ -4,14 +4,16 @@
 #include <stdio.h>
 
 #include "load_balancer.h"
+#include "utils.h"
 
 struct server_info {
     unsigned int id, hashed_id;
 };
 
 struct load_balancer {
-	struct server_info ids[400000];
-    server_memory **servers;
+	struct server_info ids[300000]; // retine toate etichetele 
+                                    //ordonate dupa hash
+    server_memory **servers; // array de pointere la servere
     int num_labels;
 };
 
@@ -35,10 +37,11 @@ unsigned int hash_function_key(void *a) {
     return hash;
 }
 
-
 load_balancer* init_load_balancer() {
 	load_balancer *bal = malloc(sizeof(*bal));
+    DIE(!bal, "load balancer malloc failure");
     bal->servers = calloc(100000, sizeof(server_memory*));
+    DIE(!bal->servers, "servers array calloc failure");
     bal->num_labels = 0;
     return bal;
 }
@@ -67,15 +70,11 @@ int bin_search(struct server_info *vect, int n, unsigned int x)
 
 void loader_store(load_balancer* main, char* key, char* value, int* server_id) {
     unsigned int key_hashed = hash_function_key(key);
-    int pos = bin_search(main->ids, main->num_labels, key_hashed) % main->num_labels;
+    // incadreaza hashul intre 2 iduri si returneaza pe cel din dreapta
+    int pos = bin_search(main->ids, main->num_labels, key_hashed);
+    pos %= main->num_labels;
+    // ne trebuie id-ul serverului care retine perechea
 	*server_id = main->ids[pos].id;
-    /*printf("\n%010u %d\n", key_hashed, *server_id);
-    for (int i = 0; i < main->num_labels; i++)
-        printf("%d ", main->ids[i].id);
-    printf("\n");
-    for (int i = 0; i < main->num_labels; i++)
-        printf("%010u ", main->ids[i].hashed_id);
-    printf("\n");*/
     *server_id %= 100000;
     server_store(main->servers[*server_id], key, value);
 }
@@ -83,26 +82,10 @@ void loader_store(load_balancer* main, char* key, char* value, int* server_id) {
 
 char* loader_retrieve(load_balancer* main, char* key, int* server_id) {
 	unsigned int key_hashed = hash_function_key(key);
-	int pos = bin_search(main->ids, main->num_labels, key_hashed) % main->num_labels;
+	int pos = bin_search(main->ids, main->num_labels, key_hashed);
+    pos %= main->num_labels;
 	*server_id = main->ids[pos].id;
-    //printf("\n%010u %d\n", key_hashed, *server_id);
     *server_id %= 100000;
-    /*for (int i = 0; i < main->num_labels; i++)
-        printf("%d ", main->ids[i].id);
-    printf("\n");
-    for (int i = 0; i < main->num_labels; i++)
-        printf("%u ", main->ids[i].hashed_id);
-    printf("\n");
-    for (int i = 0; i < main->servers[*server_id]->ht->hmax; i++)
-    {
-        ll_node_t *q = main->servers[*server_id]->ht->buckets[i]->head;
-        while (q != NULL)
-        {
-            printf("%010u %s\n", hash_function_key((char*)((struct info*)q->data)->key), (char*)((struct info*)q->data)->value);
-            q = q->next;
-        }
-    }
-    printf("\n");*/
 	return server_retrieve(main->servers[*server_id], key);
 }
 
@@ -127,48 +110,43 @@ int remove_nth(struct server_info *v, int n, int x)
 }
 
 void loader_add_server(load_balancer* main, int server_id) {
-    int pos;
+    int pos, next_id;
     unsigned int hashed_id, temp_id;
-    //printf("\n");
     main->servers[server_id] = init_server_memory();
+    // pentru fiecare server inserat, sunt adaugate 3 etichete
     for (unsigned int k = 0; k < 3; k++)
     {
         temp_id = k*100000 + server_id;
         pos = insert_sorted(main->ids, main->num_labels, temp_id);
         hashed_id = hash_function_servers(&temp_id);
         main->num_labels += 1;
-        hashtable_t *ht_to_check = main->servers[main->ids[(pos + 1) % main->num_labels].id % 100000]->ht;
-        hashtable_t *ht_new = main->servers[main->ids[pos].id % 100000]->ht;
-        if (server_id != main->ids[(pos + 1) % main->num_labels].id % 100000)
+        next_id = main->ids[(pos + 1) % main->num_labels].id % 100000;
+        if (server_id != next_id)
         {
             int key_count;
-            char **keys = ht_get_keys(ht_to_check, &key_count);
-            /*printf("%d's keys:\n", main->ids[(pos + 1) % main->num_labels].id % 100000);
-            for (int i = 0; i < key_count; i++)
-                printf("%s(%010u)\n", keys[i], hash_function_key(keys[i]));
-            printf("hashring:\n");
-            for (int i = 0; i < main->num_labels; i++)
-                printf("%010u ", main->ids[i].hashed_id);
-            printf("\n");*/
+            char **keys = server_get_keys(main->servers[next_id], &key_count);
             for (int i = 0; i < key_count; i++)
             {
                 unsigned int hashed_key = hash_function_key(keys[i]);
+                /**trebuie sa dau handle separat pentru edge case-ul
+                 * in care serverul inserat e pe pozitia 0
+                 * pentru ca C-ul nu a trecut clasa a 11-a
+                 * si considera ca -1 % n = -1 si nu n - 1
+                 */
                 if (pos == 0)
                 {
                     if (hashed_key > main->ids[main->num_labels - 1].hashed_id || hashed_key < hashed_id)
                     {
-                        void *value = ht_get(ht_to_check, keys[i]);
-                        //printf("%d(%010u) -> %d(%010u): %010u %s\n", main->ids[(pos + 1) % main->num_labels].id, main->ids[(pos + 1) % main->num_labels].hashed_id, main->ids[pos].id, main->ids[pos].hashed_id, hashed_key, (char*)value);
-                        ht_put(ht_new, keys[i], strlen(keys[i]) + 1, value, strlen((char*)value) + 1);
-                        ht_remove_entry(ht_to_check, keys[i]);
+                        void *value = server_retrieve(main->servers[next_id], keys[i]);
+                        server_store(main->servers[server_id], keys[i], value);
+                        server_remove(main->servers[next_id], keys[i]);
                     }
                 }
                 else if (hashed_key < hashed_id && main->ids[(pos - 1) % main->num_labels].hashed_id < hashed_key)
                 {
-                    void *value = ht_get(ht_to_check, keys[i]);
-                    //printf("%d(%010u) -> %d(%010u): %010u %s\n", main->ids[(pos + 1) % main->num_labels].id, main->ids[(pos + 1) % main->num_labels].hashed_id, main->ids[pos].id, main->ids[pos].hashed_id, hashed_key, (char*)value);
-                    ht_put(ht_new, keys[i], strlen(keys[i]) + 1, value, strlen((char*)value) + 1);
-                    ht_remove_entry(ht_to_check, keys[i]);
+                    void *value = server_retrieve(main->servers[next_id], keys[i]);
+                    server_store(main->servers[server_id], keys[i], value);
+                    server_remove(main->servers[next_id], keys[i]);
                 }
             }
             for (int i = 0; i < key_count; i++)
@@ -176,34 +154,32 @@ void loader_add_server(load_balancer* main, int server_id) {
             free(keys);
         }
     }
-    //printf("\n");
 }
 
 
 void loader_remove_server(load_balancer* main, int server_id) {
-    int pos;
-    unsigned int hashed_id, temp_id, rem_id, hashed_key;
-    hashtable_t *ht_to_check = main->servers[server_id % 100000]->ht;
+    int pos, temp_id, rem_id;
+    unsigned int hashed_id, hashed_key;
     for (unsigned int k = 0; k < 3; k++)
     {
         temp_id = k*100000 + server_id;
         hashed_id = hash_function_servers(&temp_id);
         pos = bin_search(main->ids, main->num_labels, hashed_id);
+        // rem_id e eticheta de dupa cea scoasa
         rem_id = remove_nth(main->ids, main->num_labels, pos);
         main->num_labels -= 1;
-        hashtable_t *ht_new = main->servers[rem_id % 100000]->ht;
         if (rem_id % 100000 != server_id)
         {
             int key_count;
-            char **keys = ht_get_keys(ht_to_check, &key_count);
+            char **keys = server_get_keys(main->servers[server_id], &key_count);
             for (int i = 0; i < key_count; i++)
             {
                 hashed_key = hash_function_key(keys[i]);
                 if ((hashed_key < hashed_id && hashed_key > main->ids[(pos - 1) % main->num_labels].hashed_id) || pos == main->num_labels)
                 {
-                    void *value = ht_get(ht_to_check, keys[i]);
-                    ht_put(ht_new, keys[i], strlen(keys[i]) + 1, value, strlen((char*)value) + 1);
-                    ht_remove_entry(ht_to_check, keys[i]);
+                    void *value = server_retrieve(main->servers[server_id], keys[i]);
+                    server_store(main->servers[rem_id % 100000], keys[i], value);
+                    server_remove(main->servers[server_id], keys[i]);
                 }
             }
             for (int i = 0; i < key_count; i++)

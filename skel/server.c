@@ -26,3 +26,7 @@ void free_server_memory(server_memory* server) {
 	ht_free(server->ht);
 	free(server);
 }
+
+char** server_get_keys(server_memory* server, int* n) {
+	return ht_get_keys(server->ht, n);
+}
